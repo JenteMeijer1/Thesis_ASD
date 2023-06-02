@@ -19,13 +19,6 @@ editor_options:
     wrap: 72
 ---
 
-This script is a final version. In the first script we also explored more options than we show in this script. 
-This scrip contains a mistake so do not use that for any results. 
-
-This script also works with the data from the new version of FreeSurfer. 
-The previous version (Script_clean), works with two different FreeSurfer versions.
-
-
 Some common notes that should be considered when running this script:
 
 -   Make sure you run the libraries. Some functions will not necessarily
