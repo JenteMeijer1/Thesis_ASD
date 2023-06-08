@@ -20,10 +20,8 @@ editor_options:
 ---
 
 Some common notes that should be considered when running this script:
-
--   Make sure you run the libraries. Some functions will not necessarily
-    not exist but it would not work properly.
-
+-   Make sure you run the libraries. Some functions will not give an error but do not work properly.
+-   We switch between using R and python. When loading something specific from the model is not working, it probably has not been run on python yet. 
 
 
 # Setup R
@@ -38,9 +36,8 @@ knitr::opts_chunk$set(
 )
 ```
 
-### Load work space
 
-### Install packages
+## Install packages
 
 Uncomment if need to install again
 
@@ -64,7 +61,6 @@ Uncomment if need to install again
 # install.packages("crayon")
 # install.packages("caret")
 
-library(dplyr)
 library(ggplot2)
 library(stats)
 library(car)
@@ -88,15 +84,18 @@ library(tidyverse)
 library(extRemes)
 library(mclust)
 library(caret)
+library(dplyr)
+
 
 ```
 
 # Phenotypic data
 
 In this part of the script, the dataframes are prepared and the clustering is performed. 
+
 ## Prepare data
 
-### Load phenotypic data
+### Load phenotypic data and prepare data
 
 First, load phenotypic data for ABIDE 1 and ABIDE 2.
 
@@ -105,9 +104,7 @@ ABIDE1_pheno <- read.csv("/Volumes/methlab/Students/Jente/Data/Phenotypic/Phenot
 ABIDE2_pheno <- read.csv("/Volumes/methlab/Students/Jente/Data/Phenotypic/ABIDEII_Composite_Phenotypic.csv", header = TRUE)
 ```
 
-### Delete columns not needed
-
-First select the variables we will need and build a data frame with only
+First select the variables we will need and build a dataframe with only
 these variables
 
 ```{r select variables, cache=TRUE}
@@ -125,26 +122,19 @@ col_order2 <- variables2
 ABIDE1_pheno_clean <- ABIDE1_pheno_clean[, col_order1]
 ABIDE2_pheno_clean <- ABIDE2_pheno_clean[, col_order2]
 
-
 ```
-
-### Change minus numbers to NA
 
 In the data there are some extreme negative values (-9999). Change
 these numbers to NAs.
-
 ```{r minus to NAs, cache=TRUE}
 ABIDE1_pheno_clean[ABIDE1_pheno_clean < 0] <- NA
 ABIDE2_pheno_clean[ABIDE2_pheno_clean < 0] <- NA
 ```
 
-### Remove participants with unreliable data
-
 In the data set, there is a column that note if the data is acquired
 reliably. There are a few that are not and therefore we will remove
 these subjects. Done by filtering on data where the column is either
 reliable (1) or not defined (NA). 
-
 ```{r remove unreliable, cache=TRUE}
 ABIDE1_pheno_clean <- filter(ABIDE1_pheno_clean, ABIDE1_pheno_clean$ADOS_RSRCH_RELIABLE == 1 | is.na(ABIDE1_pheno_clean$ADOS_RSRCH_RELIABLE))
 ABIDE1_pheno_clean <- filter(ABIDE1_pheno_clean, ABIDE1_pheno_clean$ADI_R_RSRCH_RELIABLE == 1 | is.na(ABIDE1_pheno_clean$ADI_R_RSRCH_RELIABLE))
@@ -152,12 +142,9 @@ ABIDE2_pheno_clean <- filter(ABIDE2_pheno_clean, ABIDE2_pheno_clean$ADOS_RSRCH_R
 ABIDE2_pheno_clean <- filter(ABIDE2_pheno_clean, ABIDE2_pheno_clean$ADI_R_RSRCH_RELIABLE == 1 | is.na(ABIDE2_pheno_clean$ADI_R_RSRCH_RELIABLE))
 ```
 
-### Combine data sets
-
 Combine ABIDE 1 and 2 into 1 data set
-
 ```{r combine ABIDE 1 and 2}
-# change names for this since we will change the column names. We don't want that to change for the original dataframe.
+# Change names dataframes so we can change the column names without changing the original dataframes
 forcom1 <- ABIDE1_pheno_clean
 forcom2 <- ABIDE2_pheno_clean
 
@@ -174,25 +161,22 @@ We will remove all women due to uneven distribution of women across sites.
 
 ```{r remove women, cache=TRUE}
 # Filters out data where sex=1 which is male according to the legend.
-ABIDE_pheno_clean <- filter(ABIDE_pheno_clean, ABIDE_pheno_clean$SEX == 1) # ABIDE com
+ABIDE_pheno_clean <- filter(ABIDE_pheno_clean, ABIDE_pheno_clean$SEX == 1)
 ```
 
-We can't subgroup TC since they don't have any scores for the clinical
+We can't subgroup TC since they do not have any scores for the clinical
 tests. So here we select only participants with autism.
 
 ```{r select autism, cache=TRUE}
 ABIDE_pheno_autism <- subset(ABIDE_pheno_clean, DX_GROUP == 1)
 ```
 
-### Normalize / standardize clinical scores for classification
+### Normalize clinical scores
 
 Since the scores of the clinical outcomes are all on different scales,
 we will normalize them so that one score does not weight heavier than
 another score during clustering.
-
-#### Normalisation with z-scores
-
-```{r Normalisation, cache=TRUE}
+```{r Normalization, cache=TRUE}
 dataforclust <- ABIDE_pheno_autism
 
 for (i in 12:(ncol(dataforclust))) { # Loop through the columns that we want to normalize
@@ -203,16 +187,17 @@ for (i in 12:(ncol(dataforclust))) { # Loop through the columns that we want to 
 }
 ```
 
+
 ## Cluster
 
-### Get residuals using a GLM
+### Use GLM to account for confounding effects
 
 First remove all rows with NA's for any of the needed variables.
 ```{r create dataframe clustering, cache=TRUE}
 dataforclust <- na.omit(dataforclust[, c("SITE_ID", "SUB_ID", "AGE_AT_SCAN", "SEX", "FIQ", "ADOS_MODULE", "ADOS_COMM_zscore", "ADOS_SOCIAL_zscore", "ADOS_STEREO_BEHAV_zscore")])
 ```
 
-perform the GLM to remove any confounding factors.
+perform the GLM and store residuals.
 ```{r GLM, cache=TRUE}
 glm_test <- glm(dataforclust$ADOS_COMM_zscore ~ dataforclust$AGE_AT_SCAN + dataforclust$SITE_ID + dataforclust$FIQ + dataforclust$ADOS_MODULE + dataforclust$ADOS_SOCIAL_zscore + dataforclust$ADOS_STEREO_BEHAV_zscore)
 dataforclust$ADOS_COMM_zscore_res <- glm_test$residuals
@@ -224,27 +209,18 @@ glm_test <- glm(dataforclust$ADOS_STEREO_BEHAV_zscore ~ dataforclust$AGE_AT_SCAN
 dataforclust$ADOS_STEREO_BEHAV_zscore_res <- glm_test$residuals
 ```
 
-### Perform algorithm
+### Perform model-based clustering
 
 Here we perform the model-based clustering based on the clinical subscores.
 ```{r model cluster, fig.height=5, fig.width=5, cache=TRUE}
 # use cluster algorithm
 clust_test <- Mclust(dataforclust[, c("ADOS_COMM_zscore_res", "ADOS_SOCIAL_zscore_res", "ADOS_STEREO_BEHAV_zscore_res")], verbose = FALSE)
 
-# optimal selected model
-clust_test$modelName
-
-# optimal number of cluster
-clust_test$G
-
-```
-
-Then we save the results of the clustering in the dataframe.
-```{r save model cluster , cache=TRUE}
+# Save clustering result 
 dataforclust$classification_model <- as.character(clust_test$classification)
 ```
 
-#### Visualize these new clusters
+#### Visualize the clusters
 
 ```{r compare model clusters, cache=TRUE, fig.height=7, fig.width=10}
 # First we have to make a new dataframe in a long format instead of wide
@@ -273,10 +249,10 @@ ggplot(dataforplot, aes(x = scoretype, y = Score, fill = Group)) +
   theme(axis.text.x = element_text(angle = 45, hjust = 1, vjust = 1, size = 12), text = element_text(size=18)) 
 
 # Save the combined plot
-ggsave("/Volumes/methlab/Students/Jente/Scripts/Rstudio scripts/Plots/Cluster plots/Combined_Boxplot_Subscores.png")
+ggsave("/Volumes/methlab/Students/Jente/Scripts_ASD_analysis_final/Rstudio scripts/Plots/Cluster plots/Combined_Boxplot_Subscores.png")
 ```
 
-Lets also make some plots that show the distribution of the variables. Not shown in thesis. 
+Plots that show the distribution of the variables. This plot is not shown in the thesis. 
 ```{r model cluster plot, fig.height=10, fig.width=10, cache=TRUE}
 
 # Change classification to character
@@ -296,7 +272,7 @@ ggpairs(dataforclust,
   scale_colour_manual(values = c("#5b78e2", "#b30d2e")) +
   theme(strip.background = element_rect(fill = "white"), strip.placement = "outside", text = element_text(size = 18))
 
-ggsave("/Volumes/methlab/Students/Jente/Scripts/Rstudio scripts/Plots/Cluster plots/3plots_Subtypes_Subscores.png")
+ggsave("/Volumes/methlab/Students/Jente/Scripts_ASD_analysis_final/Rstudio scripts/Plots/Cluster plots/3plots_Subtypes_Subscores.png")
 ```
 
 #### Test the clusters for significance
@@ -322,10 +298,10 @@ Sig_model <- test_clusters_approx(X, k1 = 1, k2 = 2, cl_fun = model_cluster, cl 
 Sig_model
 ```
 
-#### Replicate model based clustering by removing some datapoints and see if we find the same clusters.
+#### Stability analysis
 
 To see if the clusters are stable, we remove some random datapoints. If
-the clusters change a lot, this could indicate very instable clusters.
+the clusters change a lot, this could indicate instable clusters. A cluster is defined as stable when the same number of clusters are found.
 
 Randomly remove 10% of data and run algorithm again. (this is around
 24.9 so we will round it up)
@@ -368,14 +344,12 @@ table(results_stability$`Optimum number of clusters found`)  # Show result stabi
 ## Compare clusters on demographics
 
 ```{r Demographic differences clusters}
-
 # Difference in age
 ## assumptions:
 qqnorm(dataforclust$AGE_AT_SCAN)
 qqline(dataforclust$AGE_AT_SCAN, col = "red")
 
 # not normally distributed so use non parametric test: Man Whitney wilcox test
-
 wilcox.test(dataforclust$AGE_AT_SCAN[dataforclust$classification_model == 1], dataforclust$AGE_AT_SCAN[dataforclust$classification_model == 2])
 
 #Plot age for each subtype
@@ -387,7 +361,7 @@ ggplot(dataforclust, aes(x = classification_model, y = AGE_AT_SCAN)) +
   geom_jitter(size = 0.2) +
   scale_fill_manual(values = c("#5b78e2", "#b30d2e"), name = "Subgroups", labels = c("Subgroup 1", "Subgroup 2"))
 
-ggsave("/Volumes/methlab/Students/Jente/Scripts/Rstudio scripts/Plots/Cluster plots/Demo_age_subtypes.png")
+ggsave("/Volumes/methlab/Students/Jente/Scripts_ASD_analysis_final/Rstudio scripts/Plots/Cluster plots/Demo_age_subtypes.png")
 
 
 
@@ -407,11 +381,10 @@ ggplot(dataforclust, aes(x = classification_model, y = FIQ)) +
   geom_jitter(size = 0.2) +
   scale_fill_manual(values = c("#5b78e2", "#b30d2e"), name = "Subgroups", labels = c("Subgroup 1", "Subgroup 2"))
 
-ggsave("/Volumes/methlab/Students/Jente/Scripts/Rstudio scripts/Plots/Cluster plots/Demo_IQ_subtypes.png")
+ggsave("/Volumes/methlab/Students/Jente/Scripts_ASD_analysis_final/Rstudio scripts/Plots/Cluster plots/Demo_IQ_subtypes.png")
 
 
 # Difference in module
-
 test_demo <- merge(dataforclust, ABIDE_pheno_clean, by = "SUB_ID") # Merge back with full dataframe to get info about modules.
 
 # Change module to character
@@ -438,7 +411,7 @@ ggplot(data_modules, # Grouped barplot using ggplot2
   labs(x = "Subgroup", y ="Percentage", title = "Percentage of modules in each subgroup") +
   scale_fill_manual(values = c("#a82393","#5b78e2", "#b30d2e"), name = "Module")
 
-ggsave("/Volumes/methlab/Students/Jente/Scripts/Rstudio scripts/Plots/Cluster plots/Demo_modules_subtypes.png")
+ggsave("/Volumes/methlab/Students/Jente/Scripts_ASD_analysis_final/Rstudio scripts/Plots/Cluster plots/Demo_modules_subtypes.png")
 
 ```
 
@@ -454,8 +427,8 @@ Then we load the results from the normative model and perform analysis in follow
 Lets load all data
 
 ```{r load brain data, cache=TRUE}
-# First the EULER number ----
-# ABIDE 1
+# First the EULER number
+## ABIDE 1
 EULER_lh_ABIDE1 <- read.csv("/Volumes/methlab/Students/Jente/Data/OutputFreeSurfer/ABIDE1_new/EULER_lh_ABIDE1.csv")
 EULER_rh_ABIDE1 <- read.csv("/Volumes/methlab/Students/Jente/Data/OutputFreeSurfer/ABIDE1_new/EULER_rh_ABIDE1.csv")
 
@@ -497,7 +470,6 @@ EULER_ABIDE2$meanEULER <- rowMeans(EULER_ABIDE2[, c("EULER_lh", "EULER_rh")])
 
 # Load cortical thickness
 # ABIDE1
-
 CT_lh_Destrieux_ABIDE1 <- read.delim("/Volumes/methlab/Students/Jente/Data/OutputFreeSurfer/ABIDE1_new/CT_lh_Destrieux_ABIDE1.txt")
 CT_rh_Destrieux_ABIDE1 <- read.delim("/Volumes/methlab/Students/Jente/Data/OutputFreeSurfer/ABIDE1_new/CT_rh_Destrieux_ABIDE1.txt")
 
@@ -521,19 +493,18 @@ colnames(CT_rh_Destrieux_ABIDE2)[1] <- c("SUB_ID")
 CT_Destrieux_ABIDE2 <- merge(CT_lh_Destrieux_ABIDE2, CT_rh_Destrieux_ABIDE2, by = "SUB_ID")
 
 #Exclude longitudinal data
-exclude_ID_long <- c(50002,50005,50006,50007,50013,50026,50027,50028,50029,50031,50035,50038,50047,50048,50049,50050,50051) #Vector with SUB_ID that need to be excluded
 CT_Destrieux_ABIDE2 <- filter(CT_Destrieux_ABIDE2, !(CT_Destrieux_ABIDE2$SUB_ID %in% exclude_ID_long)) #Filter these subjects out
 ```
 
 We will exclude all participants with an Euler number larger than 300.
 ```{r remove participants with bad quality, cache=TRUE}
 # ABIDE1
-sub_keep <- EULER_ABIDE1$SUB_ID[EULER_ABIDE1$meanEULER > -300] # Create vector of subject numbers that are okey to keep.
-CT_Destrieux_ABIDE1 <- filter(CT_Destrieux_ABIDE1, CT_Destrieux_ABIDE1$SUB_ID %in% sub_keep) #Filter on subjects you want to keep
+sub_keep <- EULER_ABIDE1$SUB_ID[EULER_ABIDE1$meanEULER > -300] # Create vector of subject numbers that are included
+CT_Destrieux_ABIDE1 <- filter(CT_Destrieux_ABIDE1, CT_Destrieux_ABIDE1$SUB_ID %in% sub_keep) #Filter on subjects that are included
 
 # ABIDE 2
-sub_keep <- EULER_ABIDE2$SUB_ID[EULER_ABIDE2$meanEULER > -300] # Create vector of subject numbers that are okey to keep.
-CT_Destrieux_ABIDE2 <- filter(CT_Destrieux_ABIDE2, CT_Destrieux_ABIDE2$SUB_ID %in% sub_keep) #Filter on subjects you want to keep
+sub_keep <- EULER_ABIDE2$SUB_ID[EULER_ABIDE2$meanEULER > -300] # Create vector of subject numbers that are included
+CT_Destrieux_ABIDE2 <- filter(CT_Destrieux_ABIDE2, CT_Destrieux_ABIDE2$SUB_ID %in% sub_keep) #Filter on subjects that are included
 
 ## Merge dataframes with Euler number
 CT_Destrieux_ABIDE1 <- merge(CT_Destrieux_ABIDE1, EULER_ABIDE1, by = "SUB_ID")
@@ -542,7 +513,6 @@ CT_Destrieux_ABIDE2 <- merge(CT_Destrieux_ABIDE2, EULER_ABIDE2, by = "SUB_ID")
 
 Merge dataframes
 ```{r combine ABIDE 1 and 2 brain data, cache=TRUE}
-
 # Merge datasets
 CT_Destrieux <- rbind(CT_Destrieux_ABIDE1, CT_Destrieux_ABIDE2)
 # Delete unneeded columns
@@ -567,29 +537,28 @@ data_normative_Destrieux <- filter(data_normative_Destrieux, !(data_normative_De
 
 Export dataset for normative model
 ```{r export data NM}
-write.table(data_normative_Destrieux, "/Volumes/methlab/Students/Jente/Scripts/python_scripts/ASD_model_new/Data/Data_normative_Destrieux.txt", append = FALSE, sep = ",", dec = ".", col.names = TRUE)
+write.table(data_normative_Destrieux, "/Volumes/methlab/Students/Jente/Scripts_ASD_analysis_final/python_scripts/ASD_model/Data/Data_normative_Destrieux.txt", append = FALSE, sep = ",", dec = ".", col.names = TRUE)
 ```
 
 
 # Normative modelling
 
-From this part on we use the data from the normative model. This model is run in Python. So make sure you run the model before you start this part of the code. We also make some new dataframes we use for the plotting in python. 
+From this part on we use the data from the normative model. This model is run in Python. So make sure you run the model before you start this part of the code. 
 
 ## Load deviation scores from the normative model
 ```{r Load results normative model}
-Deviation_scores <- read_csv("/Volumes/methlab/Students/Jente/Scripts/python_scripts/ASD_model_new/results/blr/powell/outputs/Deviation_scores.csv", col_types = cols(...1 = col_skip()))
+Deviation_scores <- read_csv("/Volumes/methlab/Students/Jente/Scripts_ASD_analysis_final/python_scripts/ASD_model/results/blr/powell/outputs/Deviation_scores.csv", col_types = cols(...1 = col_skip()))
 ```
-
 Merge with clustering results so we can compare between groups.
 ```{r merge dev scores with pheno data}
-Brain_data_results <- merge(dataforclust, Deviation_scores, by = "SUB_ID")
+Brain_data_results <- merge(dataforclust, Deviation_scores, by = "SUB_ID") # Data subgroups
 
-#Also merge with complete dataset so we can combine diagnosis
-Brain_data_results_all = merge(ABIDE_pheno_clean, Deviation_scores, by="SUB_ID")
+#Also merge with complete dataset so we can compare diagnosis
+Brain_data_results_all = merge(ABIDE_pheno_clean, Deviation_scores, by="SUB_ID") # Data all
 
 ```
 
-We will make a dataframe that we will use in the classification in python (with the SVM).
+We will make a dataframe that we will use in the classification in python.
 ```{r dataframe SVM}
 # Make dataframe for SVM
 Data_SVM_TC = filter(Brain_data_results_all, Brain_data_results_all$DX_GROUP==2)
@@ -604,13 +573,11 @@ Data_SVM_ASD <- Data_SVM_ASD[, common_cols]
 Data_SVM = rbind(Data_SVM_ASD, Data_SVM_TC)
 
 #Save this dataframe for SVM
-write.table(Data_SVM, "/Volumes/methlab/Students/Jente/Scripts/python_scripts/SVM/Data.csv", append = FALSE, sep=",", dec=".", col.names = TRUE)
+write.table(Data_SVM, "/Volumes/methlab/Students/Jente/Scripts_ASD_analysis_final/python_scripts/SVM/Data.csv", append = FALSE, sep=",", dec=".", col.names = TRUE)
 ```
 
 
 ## Compare deviation scores
-
-### subgroups 
 
 We compare the deviation scores from the normative model between the subgroups. We will only show and save the plot if the area is signficiant after FDR correction.
 ```{r compare deviation score subtypes, cache=TRUE}
@@ -658,14 +625,13 @@ for (i in 1:150){
 
         )
     )
-    ggsave(paste("/Volumes/methlab/Students/Jente/Scripts/Rstudio scripts/Plots/Statistics NM_new/", p_values$ROI[i],"Sig_devscores_subtypes.png"))
+    ggsave(paste("/Volumes/methlab/Students/Jente/Scripts_ASD_analysis_final/Rstudio scripts/Plots/Statistics NM_new/", p_values$ROI[i],"Sig_devscores_subtypes.png"))
   }
 }
 
 ```
 
-
-### diagnosis
+We compare the deviation scores from the normative model between autism and TC. We will only show and save the plot if the area is signficiant after FDR correction.
 ```{r compare deviation score diagnosis, cache=TRUE}
 # make empty dataframe to store results
 p_values_diag <- data.frame(matrix(ncol = 3, nrow = 0))
@@ -710,16 +676,16 @@ for (i in 1:150){
             c("Autism", "TC")
         )
     )
-    ggsave(paste("/Volumes/methlab/Students/Jente/Scripts/Rstudio scripts/Plots/Statistics NM_new/", p_values_diag$ROI[i],"Sig_devscores_diagnosis.png"))
+    ggsave(paste("/Volumes/methlab/Students/Jente/Scripts_ASD_analysis_final/Rstudio scripts/Plots/Statistics NM_new/", p_values_diag$ROI[i],"Sig_devscores_diagnosis.png"))
   }
 }
 ```
 
 
-## Abnormality index with extreme value statistics
+## Atypicality index with extreme value statistics
 Load data from normative model in long format
 ```{r load Z scores long format}
-Z_df <- read.csv("/Volumes/methlab/Students/Jente/Scripts/python_scripts/ASD_model_new/results/Z_df.csv")
+Z_df <- read.csv("/Volumes/methlab/Students/Jente/Scripts_ASD_analysis_final/python_scripts/ASD_model/results/Z_df.csv")
 
 # Make column with absolute values of CT
 Z_df$CTabs <- abs(Z_df$CT)
@@ -750,12 +716,10 @@ for (sub in unique(Z_df$SUB_ID)) { # Loop through each subject
 }
 ```
 
-### Compare diagnosis
 
-Split into TC and ASD so we can compare the abnormality index between
+Split into TC and ASD so we can compare the Atypicality index between
 these groups.
-
-```{r Prepare dataframes for comparison abnormality index diagnosis, cache=TRUE}
+```{r Prepare dataframes for comparison Atypicality index diagnosis, cache=TRUE}
 Z_max_ASD <- filter(Z_max, Z_max$SUB_ID %in% ABIDE_pheno_clean$SUB_ID[ABIDE_pheno_clean$DX_GROUP == 1])
 Z_max_TC <- filter(Z_max, Z_max$SUB_ID %in% ABIDE_pheno_clean$SUB_ID[ABIDE_pheno_clean$DX_GROUP == 2])
 
@@ -766,9 +730,8 @@ Z_max_TC$group <- "TC"
 Z_max_diagnosis_plot <- rbind(Z_max_ASD, Z_max_TC)
 ```
 
-Compare these abnormality indexes with each other
-
-```{r compare abnoramlity index between diagnosis, cache=TRUE}
+Compare these Atypicality indexes between autism and TC
+```{r atypicality index between diagnosis, cache=TRUE}
 # Positive
 ## assumptions normality:
 qqnorm(Z_max_ASD$positive_max)
@@ -815,11 +778,11 @@ p.adjust(p_values_tests, method="fdr")
 ```
 
 Visualize the differences
-```{r plot abnormality score diagnosis}
+```{r plot Atypicality score diagnosis}
 ggplot(Z_max_diagnosis_plot, aes_string(x = "group", y = "positive_max")) +
   geom_boxplot(aes(fill = group)) +
   theme_classic() +
-  labs(x = "Group", y = "Abnormality index positive deviations", title = "Positive abnormality index differences between TC and Autism") +
+  labs(x = "Group", y = "Atypicality index positive deviations", title = "Positive Atypicality index differences between TC and Autism") +
   theme(axis.text.x = element_blank(), axis.ticks.x = element_blank()) +
   geom_jitter(size = 0.1) +
   scale_fill_manual(
@@ -827,13 +790,13 @@ ggplot(Z_max_diagnosis_plot, aes_string(x = "group", y = "positive_max")) +
       c("Autism", "TC")
   )
 
-    ggsave(paste("/Volumes/methlab/Students/Jente/Scripts/Rstudio scripts/Plots/Statistics NM_new/","dif_abnormalindex_positive_diag.png"))
+    ggsave(paste("/Volumes/methlab/Students/Jente/Scripts_ASD_analysis_final/Rstudio scripts/Plots/Statistics NM_new/","dif_abnormalindex_positive_diag.png"))
 
 
 ggplot(Z_max_diagnosis_plot, aes_string(x = "group", y = "negative_max")) +
   geom_boxplot(aes(fill = group)) +
   theme_classic() +
-  labs(x = "Group", y = "Abnormality index negative deviations", title = "Negative abnormality index differences between TC and Autism") +
+  labs(x = "Group", y = "Atypicality index negative deviations", title = "Negative Atypicality index differences between TC and Autism") +
   theme(axis.text.x = element_blank(), axis.ticks.x = element_blank()) +
   geom_jitter(size = 0.1) +
   scale_fill_manual(
@@ -841,13 +804,13 @@ ggplot(Z_max_diagnosis_plot, aes_string(x = "group", y = "negative_max")) +
       c("Autism", "TC")
   )
 
-    ggsave(paste("/Volumes/methlab/Students/Jente/Scripts/Rstudio scripts/Plots/Statistics NM_new/","dif_abnormalindex_negative_diag.png"))
+    ggsave(paste("/Volumes/methlab/Students/Jente/Scripts_ASD_analysis_final/Rstudio scripts/Plots/Statistics NM_new/","dif_abnormalindex_negative_diag.png"))
 
 
 ggplot(Z_max_diagnosis_plot, aes_string(x = "group", y = "absolute_max")) +
   geom_boxplot(aes(fill = group)) +
   theme_classic() +
-  labs(x = "Group", y = "Abnormality index absolute deviations", title = "Absolute abnormality index differences between TC and Autism") +
+  labs(x = "Group", y = "Atypicality index absolute deviations", title = "Absolute Atypicality index differences between TC and Autism") +
   theme(axis.text.x = element_blank(), axis.ticks.x = element_blank()) +
   geom_jitter(size = 0.1) +
   scale_fill_manual(
@@ -855,16 +818,14 @@ ggplot(Z_max_diagnosis_plot, aes_string(x = "group", y = "absolute_max")) +
       c("Autism", "TC")
   )
 
-    ggsave(paste("/Volumes/methlab/Students/Jente/Scripts/Rstudio scripts/Plots/Statistics NM_new/","dif_abnormalindex_absolute_diag.png"))
+    ggsave(paste("/Volumes/methlab/Students/Jente/Scripts_ASD_analysis_final/Rstudio scripts/Plots/Statistics NM_new/","dif_abnormalindex_absolute_diag.png"))
 
 ```
 
-### Compare subtypes
 
-Split into ASD subgroups so we can compare the abnormality index between
+Split into ASD subgroups so we can compare the Atypicality index between
 these groups.
-
-```{r prepare dataframes for abnormality index subtypes}
+```{r prepare dataframes for Atypicality index subtypes}
 #Split dataframes into subtypes
 Z_max_clust1 <- filter(Z_max, Z_max$SUB_ID %in% dataforclust$SUB_ID[dataforclust$classification_model == 1])
 Z_max_clust2 <- filter(Z_max, Z_max$SUB_ID %in% dataforclust$SUB_ID[dataforclust$classification_model == 2])
@@ -877,9 +838,8 @@ Z_max_clust2$group <- "clust2"
 Z_max_plot <- rbind(Z_max_clust1, Z_max_clust2)
 ```
 
-Compare these abnormality indexes with each other using a t.test
-
-```{r compare abnormality index subtypes}
+Compare these Atypicality indexes between subgroups
+```{r Atypicality index subtypes}
 # Positive
 ## assumptions normality:
 qqnorm(Z_max_clust1$positive_max)
@@ -926,11 +886,11 @@ p.adjust(p_values_testsub, method="fdr")
 ```
 
 Visualize the abornmaility index
-```{r plot abnormality index subtypes}
+```{r plot Atypicality index subtypes}
 ggplot(Z_max_plot, aes_string(x = "group", y = "positive_max")) +
   geom_boxplot(aes(fill = group)) +
   theme_classic() +
-  labs(x = "Subgroup", y = "Abnormality index positive deviations", title = "Positive abnormality index for each subgroup") +
+  labs(x = "Subgroup", y = "Atypicality index positive deviations", title = "Positive Atypicality index for each subgroup") +
   theme(axis.text.x = element_blank(), axis.ticks.x = element_blank()) +
   geom_jitter(size = 0.1) +
   scale_fill_manual(
@@ -938,13 +898,13 @@ ggplot(Z_max_plot, aes_string(x = "group", y = "positive_max")) +
       c("Subgroup 1", "Subgroup 2")
   )
 
-    ggsave(paste("/Volumes/methlab/Students/Jente/Scripts/Rstudio scripts/Plots/Statistics NM_new/","dif_abnormalindex_positive_subtypes.png"))
+    ggsave(paste("/Volumes/methlab/Students/Jente/Scripts_ASD_analysis_final/Rstudio scripts/Plots/Statistics NM_new/","dif_abnormalindex_positive_subtypes.png"))
 
 
 ggplot(Z_max_plot, aes_string(x = "group", y = "negative_max")) +
   geom_boxplot(aes(fill = group)) +
   theme_classic() +
-  labs(x = "Subgroup", y = "Abnormality index negative deviations", title = "Negative abnormality index for each subgroup") +
+  labs(x = "Subgroup", y = "Atypicality index negative deviations", title = "Negative Atypicality index for each subgroup") +
   theme(axis.text.x = element_blank(), axis.ticks.x = element_blank()) +
   geom_jitter(size = 0.1) +
   scale_fill_manual(
@@ -952,13 +912,13 @@ ggplot(Z_max_plot, aes_string(x = "group", y = "negative_max")) +
       c("Subgroup 1", "Subgroup 2")
   )
 
-    ggsave(paste("/Volumes/methlab/Students/Jente/Scripts/Rstudio scripts/Plots/Statistics NM_new/","dif_abnormalindex_negative_subtypes.png"))
+    ggsave(paste("/Volumes/methlab/Students/Jente/Scripts_ASD_analysis_final/Rstudio scripts/Plots/Statistics NM_new/","dif_abnormalindex_negative_subtypes.png"))
 
 
 ggplot(Z_max_plot, aes_string(x = "group", y = "absolute_max")) +
   geom_boxplot(aes(fill = group)) +
   theme_classic() +
-  labs(x = "Subgroup", y = "Abnormality index absolute deviations", title = "Absolute abnormality index for each subgroup") +
+  labs(x = "Subgroup", y = "Atypicality index absolute deviations", title = "Absolute Atypicality index for each subgroup") +
   theme(axis.text.x = element_blank(), axis.ticks.x = element_blank()) +
   geom_jitter(size = 0.1) +
   scale_fill_manual(
@@ -966,20 +926,20 @@ ggplot(Z_max_plot, aes_string(x = "group", y = "absolute_max")) +
       c("Subgroup 1", "Subgroup 2")
   )
 
-    ggsave(paste("/Volumes/methlab/Students/Jente/Scripts/Rstudio scripts/Plots/Statistics NM_new/","dif_abnormalindex_absolute_subtypes.png"))
+    ggsave(paste("/Volumes/methlab/Students/Jente/Scripts_ASD_analysis_final/Rstudio scripts/Plots/Statistics NM_new/","dif_abnormalindex_absolute_subtypes.png"))
 
 ```
 
 
-## Determine significant threshold Z-values.
+## P-values for thresholding
 
-For the main analysis we use a fixed threshold so we need the p_values. Then for the sensitivity analysis we also use a individual threshold with FDR correction so we also calculate the fdr corrected p values.
+For the following analyses and visualisation in python we use a fixed threshold so we need the p_values. Then for the sensitivity analysis we also use a individual threshold with FDR correction so we also calculate the FDR corrected p values.
 
 ```{r calculate p values Z-scores}
 #Calculate p values for each Z-score under a normal distribution
 Z_df$pvalue <- pnorm(Z_df$CTabs, lower.tail = FALSE)
 
-#Perform FDR correction for each participant separately. Used in sensitivity analysis.
+#Perform FDR correction for each participant separately
 Z_df <- Z_df %>%
   group_by(SUB_ID) %>%
   mutate(pvalue_fdr = p.adjust(pvalue, method = "fdr"))
@@ -1000,7 +960,7 @@ counts <- Z_df %>%
   summarise(counts = sum(pvalue < 0.005))
 
 # Merge back with dataframe so we have the information about the groups.
-## Compare HC with ASD
+## Compare TC with autism
 
 counts_all <- merge(counts, ABIDE_pheno_clean, by = "SUB_ID")
 
@@ -1022,10 +982,10 @@ ggplot(counts_all, aes_string(x = "DX_GROUP", y = "counts")) +
   geom_jitter(size = 0.1) +
   scale_fill_manual(values = c("#5b78e2", "#b30d2e"), name = "Group")
 
-    ggsave(paste("/Volumes/methlab/Students/Jente/Scripts/Rstudio scripts/Plots/Statistics NM_new/","dif_count_diagnosis.png"))
+    ggsave(paste("/Volumes/methlab/Students/Jente/Scripts_ASD_analysis_final/Rstudio scripts/Plots/Statistics NM_new/","dif_count_diagnosis.png"))
 
 
-## Compare between ASD subgroups
+## Compare between subgroups
 counts_ASD <- merge(counts, dataforclust, by = "SUB_ID")
 
 ## Test assumptions
@@ -1043,41 +1003,145 @@ ggplot(counts_ASD, aes_string(x = "classification_model", y = "counts")) +
   geom_jitter(size = 0.1) +
   scale_fill_manual(values = c("#5b78e2", "#b30d2e"), name = "Subgroups")
 
-    ggsave(paste("/Volumes/methlab/Students/Jente/Scripts/Rstudio scripts/Plots/Statistics NM_new/","dif_count_subtypes.png"))
+    ggsave(paste("/Volumes/methlab/Students/Jente/Scripts_ASD_analysis_final/Rstudio scripts/Plots/Statistics NM_new/","dif_count_subtypes.png"))
     
     
-    
-## Compare between subgroups and TC
-    
-wilcox.test(counts_ASD$counts[counts_ASD$classification_model==1], counts_all$counts[counts_all$DX_GROUP==2])
-wilcox.test(counts_ASD$counts[counts_ASD$classification_model==2], counts_all$counts[counts_all$DX_GROUP==2])
-
+  
 
 ```
-
 
 ## Save data so we can plot in python
 
 ```{r save significance data}
-write.table(Z_df, "/Volumes/methlab/Students/Jente/Scripts/python_scripts/ASD_model_new/results/P_df.csv", append = FALSE, sep = ",", dec = ".", col.names = TRUE)
+write.table(Z_df, "/Volumes/methlab/Students/Jente/Scripts_ASD_analysis_final/python_scripts/ASD_model/results/P_df.csv", append = FALSE, sep = ",", dec = ".", col.names = TRUE)
 
 ```
-
-## Data for brain maps subtypes
 
 We want to get brain maps for the different subgroups seperately. So
 save the data for each subgroup seperately so it's easy to handle in
 python.
-
 ```{r data for statistic brain maps subtypes}
 subs_1 <- dataforclust$SUB_ID[dataforclust$classification_model == 1]
 subs_2 <- dataforclust$SUB_ID[dataforclust$classification_model == 2]
 
-Z_df_1 <- filter(Z_df, Z_df$SUB_ID %in% subs_1)
-Z_df_2 <- filter(Z_df, Z_df$SUB_ID %in% subs_2)
+Z_df_1 <- subset(Z_df, Z_df$SUB_ID %in% subs_1)
+Z_df_2 <- subset(Z_df, Z_df$SUB_ID %in% subs_2)
 
-write.table(Z_df_1, "/Volumes/methlab/Students/Jente/Scripts/python_scripts/ASD_model_new/results/Z_df_subtype1.csv", append = FALSE, sep = ",", dec = ".", col.names = TRUE)
-write.table(Z_df_2, "/Volumes/methlab/Students/Jente/Scripts/python_scripts/ASD_model_new/results/Z_df_subtype2.csv", append = FALSE, sep = ",", dec = ".", col.names = TRUE)
+write.table(Z_df_1, "/Volumes/methlab/Students/Jente/Scripts_ASD_analysis_final/python_scripts/ASD_model/results/Z_df_subtype1.csv", append = FALSE, sep = ",", dec = ".", col.names = TRUE)
+write.table(Z_df_2, "/Volumes/methlab/Students/Jente/Scripts_ASD_analysis_final/python_scripts/ASD_model/results/Z_df_subtype2.csv", append = FALSE, sep = ",", dec = ".", col.names = TRUE)
+```
+
+
+## Statistics overlap maps
+
+Prepare data
+We need to work with the Z_df file since those contain the information about significance. However, we need a wide format instead of a long format so we can loop through the ROIs and count all parcitipants together. We already did this in python so we'll load the data and use that. 
+```{r}
+# Create a function to read and process the data
+read_data <- function(file_path, hemi, direction) {
+  data <- read.csv(file_path)
+  data$hemi <- hemi
+  data$direction <- direction
+  data
+}
+
+# Define the file paths and corresponding labels
+file_paths <- c(
+  "/Volumes/methlab/Students/Jente/Scripts_ASD_analysis_final/python_scripts/ASD_model/results/positive_left_z2_ASD.csv",
+  "/Volumes/methlab/Students/Jente/Scripts_ASD_analysis_final/python_scripts/ASD_model/results/positive_right_z2_ASD.csv",
+  "/Volumes/methlab/Students/Jente/Scripts_ASD_analysis_final/python_scripts/ASD_model/results/negative_left_z2_ASD.csv",
+  "/Volumes/methlab/Students/Jente/Scripts_ASD_analysis_final/python_scripts/ASD_model/results/negative_right_z2_ASD.csv",
+  "/Volumes/methlab/Students/Jente/Scripts_ASD_analysis_final/python_scripts/ASD_model/results/positive_left_z2_TC.csv",
+  "/Volumes/methlab/Students/Jente/Scripts_ASD_analysis_final/python_scripts/ASD_model/results/positive_right_z2_TC.csv",
+  "/Volumes/methlab/Students/Jente/Scripts_ASD_analysis_final/python_scripts/ASD_model/results/negative_left_z2_TC.csv",
+  "/Volumes/methlab/Students/Jente/Scripts_ASD_analysis_final/python_scripts/ASD_model/results/negative_right_z2_TC.csv",
+  "/Volumes/methlab/Students/Jente/Scripts_ASD_analysis_final/python_scripts/ASD_model/results/positive_left_z2_1.csv",
+  "/Volumes/methlab/Students/Jente/Scripts_ASD_analysis_final/python_scripts/ASD_model/results/positive_right_z2_1.csv",
+  "/Volumes/methlab/Students/Jente/Scripts_ASD_analysis_final/python_scripts/ASD_model/results/negative_left_z2_1.csv",
+  "/Volumes/methlab/Students/Jente/Scripts_ASD_analysis_final/python_scripts/ASD_model/results/negative_right_z2_1.csv",
+  "/Volumes/methlab/Students/Jente/Scripts_ASD_analysis_final/python_scripts/ASD_model/results/positive_left_z2_2.csv",
+  "/Volumes/methlab/Students/Jente/Scripts_ASD_analysis_final/python_scripts/ASD_model/results/positive_right_z2_2.csv",
+  "/Volumes/methlab/Students/Jente/Scripts_ASD_analysis_final/python_scripts/ASD_model/results/negative_left_z2_2.csv",
+  "/Volumes/methlab/Students/Jente/Scripts_ASD_analysis_final/python_scripts/ASD_model/results/negative_right_z2_2.csv"
+)
+
+labels <- c(
+  "ASD_left_positive", "ASD_right_positive", "ASD_left_negative", "ASD_right_negative",
+  "TC_left_positive", "TC_right_positive", "TC_left_negative", "TC_right_negative",
+  "sub1_left_positive", "sub1_right_positive", "sub1_left_negative", "sub1_right_negative",
+  "sub2_left_positive", "sub2_right_positive", "sub2_left_negative", "sub2_right_negative"
+)
+
+# Initialize empty lists
+count_data <- vector("list", length(file_paths))
+all_data <- list()
+
+# Read and process the data
+for (i in seq_along(file_paths)) {
+  file_path <- file_paths[i]
+  label <- labels[i]
+  hemi <- ifelse(grepl("left", label), "left", "right")
+  direction <- ifelse(grepl("positive", label), "positive", "negative")
+  
+  count_data[[i]] <- read_data(file_path, hemi, direction)
+  
+  # Combine datasets into a single list
+  all_data[[label]] <- count_data[[i]]
+}
+
+# Combine all datasets into one for each group
+counts_ASD_all <- do.call(rbind, count_data[1:4])
+counts_TC_all <- do.call(rbind, count_data[5:8])
+counts_sub1_all <- do.call(rbind, count_data[9:12])
+counts_sub2_all <- do.call(rbind, count_data[13:16])
+
+# Create column to loop through
+counts_ASD_all$loopname <- paste(counts_ASD_all$ROI, counts_ASD_all$hemi, counts_ASD_all$direction)
+counts_TC_all$loopname <- paste(counts_TC_all$ROI, counts_TC_all$hemi, counts_TC_all$direction)
+counts_sub1_all$loopname <- paste(counts_sub1_all$ROI, counts_sub1_all$hemi, counts_sub1_all$direction)
+counts_sub2_all$loopname <- paste(counts_sub2_all$ROI, counts_sub2_all$hemi, counts_sub2_all$direction)
+
+```
+
+
+Compare ASD vs TC
+```{r}
+counts_ASD_all$percentage = as.numeric(counts_ASD_all$percentage)
+counts_TC_all$percentage = as.numeric(counts_TC_all$percentage)
+
+# Positive
+## assumptions normality:
+qqnorm(counts_ASD_all$percentage)
+qqline(counts_ASD_all$percentage, col = "red")
+
+qqnorm(counts_TC_all$percentage)
+qqline(counts_TC_all$percentage, col = "red")
+
+## assumptions equal variance:
+var.test(counts_ASD_all$percentage, counts_TC_all$percentage)
+
+wilcox.test(counts_ASD_all$percentage, counts_TC_all$percentage)
+
+```
+Compare Subgroups
+```{r}
+counts_sub1_all$percentage = as.numeric(counts_sub1_all$percentage)
+counts_sub2_all$percentage = as.numeric(counts_sub2_all$percentage)
+
+# Positive
+## assumptions normality:
+qqnorm(counts_sub1_all$percentage)
+qqline(counts_sub1_all$percentage, col = "red")
+
+qqnorm(counts_sub2_all$percentage)
+qqline(counts_sub2_all$percentage, col = "red")
+
+## assumptions equal variance:
+var.test(counts_sub1_all$percentage, counts_sub2_all$percentage)
+
+
+wilcox.test(counts_sub1_all$percentage, counts_sub2_all$percentage)
+
 ```
 
 
@@ -1110,17 +1174,11 @@ ggplot(data = data.frame(x = row_data, color = colors), aes(x = x, fill = color)
 
 # Sensitivity analysis
 
-## Prepare data for mega model # TODO! Changed this code so if we use it add back in
-Here we prepare the data that we used for the megamodel. 
-```{r}
 
-```
-
-
-## Do comparisons with TCtest (10%)
+## Comparisons with TCtest (10%)
 Load sub IDs that are in the TCtest set (with 10% of TC used for test)
 ```{r}
-subids_test_TC10 <- read.csv("/Volumes/methlab/Students/Jente/Scripts/python_scripts/ASD_model_new/subids_test_TC10.csv")
+subids_test_TC10 <- read.csv("/Volumes/methlab/Students/Jente/Scripts_ASD_analysis_final/python_scripts/ASD_model/subids_test_TC10.csv")
 subids_TCtest10 = subids_test_TC10$SUB_ID
 ```
 
@@ -1172,13 +1230,11 @@ for (i in 1:150){
   }
 }
 
-
 ```
 
-Abnormality index:
+Atypicality index:
 ```{r}
 
-## Abornamlity index 
 Z_max_TCtest10 = filter(Z_max, Z_max$SUB_ID %in% subids_TCtest10)
 Z_max_TCtest10$group <- "TC"
 
@@ -1199,7 +1255,9 @@ wilcox.test(counts_all$counts[counts_all$DX_GROUP == 1], counts_all$counts[count
 ```
 
 
-## Analysis with FDR correction as threshold
+## Individual FDR correction
+
+### Count analysis
 ```{r}
 # Count the number of significant areas
 counts <- data.frame(matrix(ncol = 0, nrow = length(unique(Z_df$SUB_ID))))
@@ -1210,8 +1268,6 @@ counts <- Z_df %>%
   summarise(counts = sum(pvalue_fdr < 0.05))
 
 # Merge back with dataframe so we have the information about the groups.
-## Compare HC with ASD
-
 counts_all <- merge(counts, ABIDE_pheno_clean, by = "SUB_ID")
 
 # Change diagnosis to character instead of numeric
@@ -1225,7 +1281,7 @@ wilcox.test(counts_all$counts[counts_all$DX_GROUP == 1], counts_all$counts[count
 
 
 
-## Compare between ASD subtypes
+## Compare between autism subtypes
 counts_ASD <- merge(counts, dataforclust, by = "SUB_ID")
 
 ## Test assumptions
@@ -1240,5 +1296,464 @@ wilcox.test(counts_ASD$counts[counts_ASD$classification_model == 1], counts_ASD$
 wilcox.test(counts_ASD$counts[counts_ASD$classification_model==1], counts_all$counts[counts_all$DX_GROUP==2])
 wilcox.test(counts_ASD$counts[counts_ASD$classification_model==2], counts_all$counts[counts_all$DX_GROUP==2])
 
+
+```
+
+### Prepare data for plots python
+```{r}
+ind_FDR = Z_df
+ind_FDR$CT[ind_FDR$pvalue_fdr > 0.05] <- 0 # When the individual FDR p-value is higher than 0.05, we set the CT to 0 so we can use a threhold of >0 for the brain maps.
+
+write.table(ind_FDR, "/Volumes/methlab/Students/Jente/Scripts_ASD_analysis_final/python_scripts/ASD_model/results/individual_FDR.csv", append = FALSE, sep = ",", dec = ".", col.names = TRUE)
+
+```
+
+### Statistics overlap maps
+
+Prepare data
+We need to work with the Z_df file since those contain the information about significance. However, we need a wide format instead of a long format so we can loop through the ROIs and count all parcitipants together. We already did this in python so we'll load the data and use that. 
+```{r}
+# Create a function to read and process the data
+read_data <- function(file_path, hemi, direction) {
+  data <- read.csv(file_path)
+  data$hemi <- hemi
+  data$direction <- direction
+  data
+}
+# Define the file paths and corresponding labels
+file_paths <- c(
+  "/Volumes/methlab/Students/Jente/Scripts_ASD_analysis_final/python_scripts/ASD_model/results/positive_left_2_ind_ASD.csv",
+  "/Volumes/methlab/Students/Jente/Scripts_ASD_analysis_final/python_scripts/ASD_model/results/positive_right_2_ind_ASD.csv",
+  "/Volumes/methlab/Students/Jente/Scripts_ASD_analysis_final/python_scripts/ASD_model/results/negative_left_2_ind_ASD.csv",
+  "/Volumes/methlab/Students/Jente/Scripts_ASD_analysis_final/python_scripts/ASD_model/results/negative_right_2_ind_ASD.csv",
+  "/Volumes/methlab/Students/Jente/Scripts_ASD_analysis_final/python_scripts/ASD_model/results/positive_left_2_ind_TC.csv",
+  "/Volumes/methlab/Students/Jente/Scripts_ASD_analysis_final/python_scripts/ASD_model/results/positive_right_2_ind_TC.csv",
+  "/Volumes/methlab/Students/Jente/Scripts_ASD_analysis_final/python_scripts/ASD_model/results/negative_left_2_ind_TC.csv",
+  "/Volumes/methlab/Students/Jente/Scripts_ASD_analysis_final/python_scripts/ASD_model/results/negative_right_2_ind_TC.csv",
+  "/Volumes/methlab/Students/Jente/Scripts_ASD_analysis_final/python_scripts/ASD_model/results/positive_left_2_ind_1.csv",
+  "/Volumes/methlab/Students/Jente/Scripts_ASD_analysis_final/python_scripts/ASD_model/results/positive_right_2_ind_1.csv",
+  "/Volumes/methlab/Students/Jente/Scripts_ASD_analysis_final/python_scripts/ASD_model/results/negative_left_2_ind_1.csv",
+  "/Volumes/methlab/Students/Jente/Scripts_ASD_analysis_final/python_scripts/ASD_model/results/negative_right_2_ind_1.csv",
+  "/Volumes/methlab/Students/Jente/Scripts_ASD_analysis_final/python_scripts/ASD_model/results/positive_left_2_ind_2.csv",
+  "/Volumes/methlab/Students/Jente/Scripts_ASD_analysis_final/python_scripts/ASD_model/results/positive_right_2_ind_2.csv",
+  "/Volumes/methlab/Students/Jente/Scripts_ASD_analysis_final/python_scripts/ASD_model/results/negative_left_2_ind_2.csv",
+  "/Volumes/methlab/Students/Jente/Scripts_ASD_analysis_final/python_scripts/ASD_model/results/negative_right_2_ind_2.csv"
+)
+
+
+labels <- c(
+  "ASD_left_positive", "ASD_right_positive", "ASD_left_negative", "ASD_right_negative",
+  "TC_left_positive", "TC_right_positive", "TC_left_negative", "TC_right_negative",
+  "sub1_left_positive", "sub1_right_positive", "sub1_left_negative", "sub1_right_negative",
+  "sub2_left_positive", "sub2_right_positive", "sub2_left_negative", "sub2_right_negative"
+)
+
+# Initialize empty lists
+count_data <- vector("list", length(file_paths))
+all_data <- list()
+
+# Read and process the data
+for (i in seq_along(file_paths)) {
+  file_path <- file_paths[i]
+  label <- labels[i]
+  hemi <- ifelse(grepl("left", label), "left", "right")
+  direction <- ifelse(grepl("positive", label), "positive", "negative")
+  
+  count_data[[i]] <- read_data(file_path, hemi, direction)
+  
+  # Combine datasets into a single list
+  all_data[[label]] <- count_data[[i]]
+}
+
+# Combine all datasets into one for each group
+counts_ASD_all <- do.call(rbind, count_data[1:4])
+counts_TC_all <- do.call(rbind, count_data[5:8])
+counts_sub1_all <- do.call(rbind, count_data[9:12])
+counts_sub2_all <- do.call(rbind, count_data[13:16])
+
+# Create column to loop through
+counts_ASD_all$loopname <- paste(counts_ASD_all$ROI, counts_ASD_all$hemi, counts_ASD_all$direction)
+counts_TC_all$loopname <- paste(counts_TC_all$ROI, counts_TC_all$hemi, counts_TC_all$direction)
+counts_sub1_all$loopname <- paste(counts_sub1_all$ROI, counts_sub1_all$hemi, counts_sub1_all$direction)
+counts_sub2_all$loopname <- paste(counts_sub2_all$ROI, counts_sub2_all$hemi, counts_sub2_all$direction)
+
+```
+
+
+Compare ASD vs TC
+```{r}
+counts_ASD_all$percentage = as.numeric(counts_ASD_all$percentage)
+counts_TC_all$percentage = as.numeric(counts_TC_all$percentage)
+
+# Positive
+## assumptions normality:
+qqnorm(counts_ASD_all$percentage)
+qqline(counts_ASD_all$percentage, col = "red")
+
+qqnorm(counts_TC_all$percentage)
+qqline(counts_TC_all$percentage, col = "red")
+
+## assumptions equal variance:
+var.test(counts_ASD_all$percentage, counts_TC_all$percentage)
+
+wilcox.test(counts_ASD_all$percentage, counts_TC_all$percentage)
+
+```
+Compare Subgroups
+```{r}
+counts_sub1_all$percentage = as.numeric(counts_sub1_all$percentage)
+counts_sub2_all$percentage = as.numeric(counts_sub2_all$percentage)
+
+# Positive
+## assumptions normality:
+qqnorm(counts_sub1_all$percentage)
+qqline(counts_sub1_all$percentage, col = "red")
+
+qqnorm(counts_sub2_all$percentage)
+qqline(counts_sub2_all$percentage, col = "red")
+
+## assumptions equal variance:
+var.test(counts_sub1_all$percentage, counts_sub2_all$percentage)
+
+
+wilcox.test(counts_sub1_all$percentage, counts_sub2_all$percentage)
+
+```
+
+
+## mega model
+
+### Prepare data to run the model
+```{r}
+set.seed(1)
+
+data_megamodel = filter(data_normative_Destrieux, !data_normative_Destrieux$SITE_ID %in% c("ABIDEII-KUL_3", "SBL"))
+
+data_megamodel_ASD = filter(data_megamodel, data_megamodel$DX_GROUP==1)
+data_megamodel_TC = filter(data_megamodel, data_megamodel$DX_GROUP==2)
+
+
+# Find unique sites
+unique_sites <- unique(data_megamodel_TC$SITE_ID)
+
+# Initialize empty train and test data frames
+data_megamodel_TC_train <- data.frame()
+data_megamodel_TC_test <- data.frame()
+
+# Split data by sites
+for (site in unique_sites) {
+  site_data <- data_megamodel_TC[data_megamodel_TC$SITE_ID == site, ]
+  n <- nrow(site_data)
+  train_indices <- sample(1:n, floor(0.5 * n))
+
+  site_train <- site_data[train_indices, ]
+  site_test <- site_data[-train_indices, ]
+
+  data_megamodel_TC_train <- rbind(data_megamodel_TC_train, site_train)
+  data_megamodel_TC_test <- rbind(data_megamodel_TC_test, site_test)
+}
+
+
+data_megamodel_train = data_megamodel_TC_train 
+data_megamodel_test = rbind(data_megamodel_ASD, data_megamodel_TC_test)
+
+remove_columns = c("DX_GROUP", "FIQ", "EULER_lh", "EULER_rh", "meanEULER")
+
+data_megamodel_train = data_megamodel_train[, !names(data_megamodel_train) %in% remove_columns]
+data_megamodel_test = data_megamodel_test[, !names(data_megamodel_test) %in% remove_columns]
+
+# Change column names so it fits with template
+
+colnames(data_megamodel_train)[1] = "sub_id"
+colnames(data_megamodel_train)[2] = "site"
+colnames(data_megamodel_train)[3] = "age"
+colnames(data_megamodel_train)[4] = "sex"
+colnames(data_megamodel_train) = gsub("_and_", "&", colnames(data_megamodel_train))
+colnames(data_megamodel_train) = gsub("\\.", "-", colnames(data_megamodel_train))
+
+colnames(data_megamodel_test)[1] = "sub_id"
+colnames(data_megamodel_test)[2] = "site"
+colnames(data_megamodel_test)[3] = "age"
+colnames(data_megamodel_test)[4] = "sex"
+colnames(data_megamodel_test) = gsub("_and_", "&", colnames(data_megamodel_test))
+colnames(data_megamodel_test) = gsub("\\.", "-", colnames(data_megamodel_test))
+
+# Change data type
+data_megamodel_test$sub_id = as.character(data_megamodel_test$sub_id)
+data_megamodel_test$age = as.numeric(data_megamodel_test$age)
+data_megamodel_test$sex = as.numeric(data_megamodel_test$sex)
+
+data_megamodel_train$sub_id = as.character(data_megamodel_train$sub_id)
+data_megamodel_train$age = as.numeric(data_megamodel_train$age)
+data_megamodel_train$sex = as.numeric(data_megamodel_train$sex)
+
+for (i in 1:nrow(data_megamodel_test)) {
+  if (grepl('ABIDE', data_megamodel_test[i, 'site']) & grepl('_', data_megamodel_test[i, 'site']) & grepl('-', data_megamodel_test[i, 'site'])) {
+    site_name <- unlist(strsplit(substring(data_megamodel_test[i, 'site'], first = 2), '-'))[2]
+    data_megamodel_test[i, 'site'] <- sub('_\\d$', '', site_name)
+  } else if (grepl('ABIDE', data_megamodel_test[i, 'site']) & grepl('_', data_megamodel_test[i, 'site']) & !grepl('-', data_megamodel_test[i, 'site'])) {
+    site_name <- unlist(strsplit(substring(data_megamodel_test[i, 'site'], first = 2), '_'))[1]
+    data_megamodel_test[i, 'site'] <- sub('_\\d$', '', site_name)
+  } else if (grepl('ABIDE', data_megamodel_test[i, 'site']) & grepl('-', data_megamodel_test[i, 'site']) & !grepl('_', data_megamodel_test[i, 'site'])) {
+    site_name <- unlist(strsplit(substring(data_megamodel_test[i, 'site'], first = 2), '-'))[1]
+    data_megamodel_test[i, 'site'] <- sub('_\\d$', '', site_name)
+  }
+}
+
+
+for (i in 1:nrow(data_megamodel_train)) {
+  if (grepl('ABIDE', data_megamodel_train[i, 'site']) & grepl('_', data_megamodel_train[i, 'site']) & grepl('-', data_megamodel_train[i, 'site'])) {
+    site_name <- unlist(strsplit(substring(data_megamodel_train[i, 'site'], first = 2), '-'))[2]
+    data_megamodel_train[i, 'site'] <- sub('_\\d$', '', site_name)
+  } else if (grepl('ABIDE', data_megamodel_train[i, 'site']) & grepl('_', data_megamodel_train[i, 'site']) & !grepl('-', data_megamodel_train[i, 'site'])) {
+    site_name <- unlist(strsplit(substring(data_megamodel_train[i, 'site'], first = 2), '_'))[1]
+    data_megamodel_train[i, 'site'] <- sub('_\\d$', '', site_name)
+  } else if (grepl('ABIDE', data_megamodel_train[i, 'site']) & grepl('-', data_megamodel_train[i, 'site']) & !grepl('_', data_megamodel_train[i, 'site'])) {
+    site_name <- unlist(strsplit(substring(data_megamodel_train[i, 'site'], first = 2), '-'))[1]
+    data_megamodel_train[i, 'site'] <- sub('_\\d$', '', site_name)
+  }
+}
+
+
+#Export as csv
+write.table(data_megamodel_test, "/Volumes/methlab/Students/Jente/Data/sensitivity analysis/megamodelCSV/data_megamodel_test.csv", sep = ",", dec = ".", row.names = FALSE)
+
+write.table(data_megamodel_train, "/Volumes/methlab/Students/Jente/Data/sensitivity analysis/megamodelCSV/data_megamodel_train.csv", sep = ",", dec = ".",  row.names = FALSE)
+
+```
+
+
+### Compare deviation scores
+
+Load deviation scores from the mega model
+```{r}
+data_megamodel <- read.csv("/Volumes/methlab/Students/Jente/Data/sensitivity analysis/megamodelCSV/results/resultsmegamodel.csv")
+
+#Merge with phenotypic dataframe
+data_megamodel_subs <- merge(dataforclust, data_megamodel, by = "SUB_ID")
+
+#Also merge with complete dataset so we can combine diagnosis
+data_megamodel_all = merge(ABIDE_pheno_clean, data_megamodel, by="SUB_ID")
+
+```
+
+We compare the deviation scores from the normative model between the subgroups. We will only show and save the plot if the area is signficiant after FDR correction.
+```{r, cache=TRUE}
+# make empty dataframe to store results
+p_values <- data.frame(matrix(ncol = 3, nrow = 0))
+#Change colnames
+colnames(p_values) <- c("ROI", "p_value", "p_value_adjusted")
+
+i <- 0
+#Loop through each ROI
+for (ROI in colnames(data_megamodel_subs)[14:163]) {
+  
+  i <- i + 1
+  
+  #Save data for each ROI for each cluster
+  data_roi <- data_megamodel_subs[c(ROI, "classification_model")]
+  data_roi[, ROI] <- abs(data_roi[, ROI])
+  data_roi_1 <- filter(data_roi, data_roi$classification_model == 1)
+  data_roi_2 <- filter(data_roi, data_roi$classification_model == 2)
+  
+  p_values[i,1] = ROI
+  #Calculate p-values and save
+  p_values[i, 2] <- wilcox.test(as.numeric(data_roi_1[, c(ROI)]), as.numeric(data_roi_2[, c(ROI)]))$p.value
+}
+
+#Adjust p values for multiple comparison
+p_values$p_value_adjusted <- p.adjust(p_values$p_value, method = "fdr")
+
+
+for (i in 1:150){
+  #Plot if ROI is significant, otherwise not and show message about significance.
+  if (p_values[i, 3] < 0.05) {
+    message(green(i, "is significant. P_value is:", p_values[i, 3]))
+    
+    print(
+      ggplot(data_roi, aes(x = "classification_model", y = data_megamodel[,p_values$ROI[i]])) +
+        geom_boxplot(aes(fill = classification_model)) +
+        theme_classic() +
+        labs(x = "Classification", y = paste(p_values$ROI[i], "deviation score"), title = paste(p_values$ROI[i], "for each Subgroup")) +
+        theme(axis.text.x = element_blank(), axis.ticks.x = element_blank()) +
+        geom_jitter(size = 0.1) +
+        scale_fill_manual(
+          values = c("#5b78e2", "#b30d2e", "#a82393"), name = "Subgroup", labels =
+            c("Subgroup 1", "Subgroup 2")
+          
+        )
+    )
+
+  }
+}
+
+```
+
+We compare the deviation scores from the normative model between autism and TC. We will only show and save the plot if the area is signficiant after FDR correction.
+```{r, cache=TRUE}
+# make empty dataframe to store results
+p_values_diag <- data.frame(matrix(ncol = 3, nrow = 0))
+#Change colnames
+colnames(p_values_diag) <- c("ROI", "p_value", "p_value_adjusted")
+
+i <- 0
+#Loop through each ROI
+for (ROI in colnames(data_megamodel_all)[16:165]) {
+  
+  i <- i + 1
+  
+  #Save data for each ROI for each cluster
+  data_roi <- data_megamodel_all[c(ROI, "DX_GROUP")]
+  data_roi$DX_GROUP = as.character(data_roi$DX_GROUP)
+  data_roi[, ROI] <- abs(data_roi[, ROI])
+  data_roi_1 <- filter(data_roi, data_roi$DX_GROUP == 1)
+  data_roi_2 <- filter(data_roi, data_roi$DX_GROUP == 2)
+  
+  p_values_diag[i,1] = ROI
+  #Calculate p-values and save
+  p_values_diag[i, 2] <- wilcox.test(as.numeric(data_roi_1[, c(ROI)]), as.numeric(data_roi_2[, c(ROI)]))$p.value
+}
+
+#Adjust p values for multiple comparison
+p_values_diag$p_value_adjusted <- p.adjust(p_values_diag$p_value, method = "fdr")
+
+for (i in 1:150){
+  #Plot if ROI is significant, otherwise not and show message about significance.
+  if (p_values_diag[i, 3] < 0.05) {
+    message(green(p_values_diag$ROI[i], "is significant. P_value is:", p_values_diag[i, 3]))
+    
+    print(
+      ggplot(data_roi, aes(x = DX_GROUP, y = data_megamodel_all[,p_values_diag$ROI[i]])) +
+        geom_boxplot(aes(fill = DX_GROUP)) +
+        theme_classic() +
+        labs(x = "Group", y = paste(p_values_diag$ROI[i], "deviation score"), title = paste(p_values_diag$ROI[i], "for TC and Autism")) +
+        theme(axis.text.x = element_blank(), axis.ticks.x = element_blank()) +
+        geom_jitter(size = 0.1) +
+        scale_fill_manual(
+          values = c("#5b78e2", "#b30d2e", "#a82393"), name = "Group", labels =
+            c("Autism", "TC")
+        )
+    )
+
+  }
+}
+```
+
+### Atypicality index
+
+Subgroups
+```{r}
+
+#Create atypicality index with extreme value statistics 
+
+data_megamodel_subs$atyp_index <- 0
+
+for (i in 1:nrow(data_megamodel_subs)) {
+  subdata <- data_megamodel_subs[i, 14:163]
+  absolute_1pct_cutoff <- quantile(abs(subdata), 0.99, na.rm = TRUE)
+  top1 <- subdata[abs(subdata) > absolute_1pct_cutoff]
+  data_megamodel_subs$atyp_index[i] <- mean(abs(top1), na.rm = TRUE)
+}
+
+
+# Compare subgroups
+
+wilcox.test(data_megamodel_subs$atyp_index[data_megamodel_subs$classification_model==1], data_megamodel_subs$atyp_index[data_megamodel_subs$classification_model==2])
+
+ggplot(data_megamodel_subs, aes(x = classification_model, y = atyp_index)) +
+  geom_boxplot(aes(fill = classification_model)) +
+  theme_classic() +
+  labs(x = "Group", y = "Atypicality index absolute deviations", title = "Absolute Atypicality index differences between Subgroups") +
+  theme(axis.text.x = element_blank(), axis.ticks.x = element_blank()) +
+  geom_jitter(size = 0.1) +
+  scale_fill_manual(
+    values = c("#5b78e2", "#b30d2e", "#a82393"), name = "Subgroups", labels =
+      c("Subgroup 1", "Subgroup 2")
+  )
+
+```
+
+Autism vs TC
+```{r}
+
+#Create atypicality index with extreme value statistics 
+
+data_megamodel_all$atyp_index <- 0
+
+for (i in 1:nrow(data_megamodel_all)) {
+  subdata <- data_megamodel_all[i, 16:165]
+  absolute_1pct_cutoff <- quantile(abs(subdata), 0.99, na.rm = TRUE)
+  top1 <- subdata[abs(subdata) > absolute_1pct_cutoff]
+  data_megamodel_all$atyp_index[i] <- mean(abs(top1), na.rm = TRUE)
+}
+
+
+# Compare diagnosis
+
+data_megamodel_all$DX_GROUP = as.character(data_megamodel_all$DX_GROUP)
+
+wilcox.test(data_megamodel_all$atyp_index[data_megamodel_all$DX_GROUP==1], data_megamodel_all$atyp_index[data_megamodel_all$DX_GROUP==2])
+
+ggplot(data_megamodel_all, aes(x = DX_GROUP, y = atyp_index)) +
+  geom_boxplot(aes(fill = DX_GROUP)) +
+  theme_classic() +
+  labs(x = "Group", y = "Atypicality index absolute deviations", title = "Absolute Atypicality index differences between diagnosis") +
+  theme(axis.text.x = element_blank(), axis.ticks.x = element_blank()) +
+  geom_jitter(size = 0.1) +
+  scale_fill_manual(
+    values = c("#5b78e2", "#b30d2e", "#a82393"), name = "Group", labels =
+            c("Autism", "TC")
+  )
+
+```
+
+### Count significant deviations 
+
+Subgroups
+```{r}
+
+data_megamodel_subs$count = 0
+
+
+for (i in 1:nrow(data_megamodel_subs)){ # Loop through each participant
+  
+  subdata <- data_megamodel_subs[i,]
+  
+  for (ROI in colnames(data_megamodel_subs)[14:163]){ # Loop through each ROI
+    
+    p_value = pnorm(data_megamodel_subs[i,ROI], lower.tail=FALSE) # determine p_value for each participant and each ROI
+
+    if (p_value < 0.005){ # If significant, add 1 to the number of significant regions
+      data_megamodel_subs$count[i] = data_megamodel_subs$count[i] + 1
+    }
+  }
+}
+
+# Compare number of significant regions
+wilcox.test(data_megamodel_subs$count[data_megamodel_subs$classification_model==1], data_megamodel_subs$count[data_megamodel_subs$classification_model==2]) 
+
+```
+
+Autism vs TC
+```{r}
+
+data_megamodel_all$count = 0
+
+for (i in 1:nrow(data_megamodel_all)){# Loop through each participant
+  
+  subdata <- data_megamodel_all[i,]
+  
+  for (ROI in colnames(data_megamodel_all)[16:165]){# Loop through each ROI
+    
+    p_value = pnorm(data_megamodel_all[i,ROI], lower.tail=FALSE)# determine p_value for each participant and each ROI
+    
+    if (p_value < 0.005){
+      data_megamodel_all$count[i] = data_megamodel_all$count[i] + 1
+    }
+  }
+}
+
+# Compare number of significant regions
+wilcox.test(data_megamodel_all$count[data_megamodel_all$DX_GROUP==1], data_megamodel_all$count[data_megamodel_all$DX_GROUP==2])
 
 ```

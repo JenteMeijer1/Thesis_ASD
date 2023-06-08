@@ -19,14 +19,11 @@ editor_options:
     wrap: 72
 ---
 
-This script is to run analysis from the normative model when we include 20% of the TC in the test set instead of 10% and see if this changes. So this script is for the sensitivity analysis. We will load the clustering data from the other script.
+This script is to run analysis from the normative model when we include 20% of the TC in the test set instead of 10% and see if this changes. So this script is for the sensitivity analysis. We will load the clustering data from the other script. Make sure to carefully run everything.
 
 Some common notes that should be considered when running this script:
-
--   Make sure you run the libraries. Some functions will not necessarily
-    not exist but it would not work properly.
-
-
+-   Make sure you run the libraries. Some functions will not give an error but do not work properly.
+-   We switch between using R and python. When loading something specific from the model is not working, it probably has not been run on python yet. 
 
 # Setup R
 
@@ -44,7 +41,7 @@ knitr::opts_chunk$set(
 
 We load the workspace from the Script_final_forthesis markdown. This does mean we also load all brain data. So do not use anything directly from this workspace but run everything before you take any results. In this way we don't have to run the clustering again which is the same for the sensitivity analysis. 
 ```{r load workspace, cache=TRUE}
-load("/Volumes/methlab/Students/Jente/Scripts/Rstudio scripts/workspace_final2.RData")
+load("/Volumes/methlab/Students/Jente/Scripts_ASD_analysis_final/Rstudio scripts/workspace.RData")
 ```
 
 ### Install packages
@@ -99,13 +96,12 @@ library(caret)
 
 # Normative modelling
 
-From this part on we use the data from the normative model. This model is run in Python. So make sure you run the model before you start this part of the code. We also make some new dataframes we use for the plotting in python. 
+From this part on we use the data from the normative model. This model is run in Python. So make sure you run the model before you start this part of the code.
 
 ## Load deviation scores from the normative model
 ```{r Load results normative model}
-Deviation_scores <- read_csv("/Volumes/methlab/Students/Jente/Scripts/python_scripts/ASD_model_sensitivity_analysisTC20/results/blr/powell/outputs/Deviation_scores.csv", col_types = cols(...1 = col_skip()))
+Deviation_scores <- read_csv("/Volumes/methlab/Students/Jente/Scripts_ASD_analysis_final/python_scripts/ASD_model_sensitivity_analysisTC20/results/blr/powell/outputs/Deviation_scores.csv", col_types = cols(...1 = col_skip()))
 ```
-
 
 Merge with clustering results so we can compare between groups.
 ```{r merge dev scores with pheno data}
@@ -118,9 +114,8 @@ Brain_data_results_all = merge(ABIDE_pheno_clean, Deviation_scores, by="SUB_ID")
 
 ## Compare deviation scores 
 
-### Subgroups
-
-```{r comparison abs deviation score subtypes, cache=TRUE}
+Subgroups
+```{r comparison abs deviation score subgroups, cache=TRUE}
 #Make empty dataframe
 p_values_abs <- data.frame(matrix(ncol = 3, nrow = length(colnames(Brain_data_results)[14:163])))
 #Change colnames
@@ -170,7 +165,7 @@ for (i in 1:150){
   }
 ```
 
-### Diagnosis
+Autism vs TC
 ```{r comparison abs deviation score diagnosis, cache=TRUE}
 # make empty dataframe to store results
 p_values_diag_abs <- data.frame(matrix(ncol = 3, nrow = 0))
@@ -220,10 +215,10 @@ for (i in 1:150){
 }
 ```
 
-## Abnormality index with extreme value statistics
+## atypicality index with extreme value statistics
 Load data
 ```{r load Z scores long format}
-Z_df <- read.csv("/Volumes/methlab/Students/Jente/Scripts/python_scripts/ASD_model_sensitivity_analysisTC20/results/Z_df.csv")
+Z_df <- read.csv("/Volumes/methlab/Students/Jente/Scripts_ASD_analysis_final/python_scripts/ASD_model_sensitivity_analysisTC20/results/Z_df.csv")
 
 # Make column with absolute values of CT
 Z_df$CTabs <- abs(Z_df$CT)
@@ -254,12 +249,11 @@ for (sub in unique(Z_df$SUB_ID)) {
 }
 ```
 
-### Compare diagnosis
 
-Split into TC and ASD so we can compare the abnormality index between
+Split into TC and ASD so we can compare the atypicality index between
 these groups. We want different distributions for the groups.
 
-```{r Prepare dataframes for comparison abnormality index diagnosis, cache=TRUE}
+```{r Prepare dataframes for comparison atypicality index diagnosis, cache=TRUE}
 Z_max_ASD <- filter(Z_max, Z_max$SUB_ID %in% ABIDE_pheno_clean$SUB_ID[ABIDE_pheno_clean$DX_GROUP == 1])
 Z_max_TC <- filter(Z_max, Z_max$SUB_ID %in% ABIDE_pheno_clean$SUB_ID[ABIDE_pheno_clean$DX_GROUP == 2])
 
@@ -270,8 +264,7 @@ Z_max_TC$group <- "TC"
 Z_max_diagnosis_plot <- rbind(Z_max_ASD, Z_max_TC)
 ```
 
-Compare these abnormality indexes with each other
-
+Compare atypicality index between autism and TC
 ```{r compare abnoramlity index between diagnosis, cache=TRUE}
 # Positive
 ## assumptions normality:
@@ -319,11 +312,11 @@ p.adjust(p_values_tests, method="fdr")
 
 Visualize the differences
 
-```{r plot abnormality score diagnosis}
+```{r plot atypicality score diagnosis}
 ggplot(Z_max_diagnosis_plot, aes_string(x = "group", y = "positive_max")) +
   geom_boxplot(aes(fill = group)) +
   theme_classic() +
-  labs(x = "Group", y = "Abnormality index positive deviations", title = "Positive abnormality index differences between TC and Autism") +
+  labs(x = "Group", y = "atypicality index positive deviations", title = "Positive atypicality index differences between TC and Autism") +
   theme(axis.text.x = element_blank(), axis.ticks.x = element_blank()) +
   geom_jitter(size = 0.1) +
   scale_fill_manual(
@@ -334,7 +327,7 @@ ggplot(Z_max_diagnosis_plot, aes_string(x = "group", y = "positive_max")) +
 ggplot(Z_max_diagnosis_plot, aes_string(x = "group", y = "negative_max")) +
   geom_boxplot(aes(fill = group)) +
   theme_classic() +
-  labs(x = "Group", y = "Abnormality index negative deviations", title = "Negative abnormality index differences between TC and Autism") +
+  labs(x = "Group", y = "atypicality index negative deviations", title = "Negative atypicality index differences between TC and Autism") +
   theme(axis.text.x = element_blank(), axis.ticks.x = element_blank()) +
   geom_jitter(size = 0.1) +
   scale_fill_manual(
@@ -345,7 +338,7 @@ ggplot(Z_max_diagnosis_plot, aes_string(x = "group", y = "negative_max")) +
 ggplot(Z_max_diagnosis_plot, aes_string(x = "group", y = "absolute_max")) +
   geom_boxplot(aes(fill = group)) +
   theme_classic() +
-  labs(x = "Group", y = "Abnormality index absolute deviations", title = "Absolute abnormality index differences between TC and Autism") +
+  labs(x = "Group", y = "atypicality index absolute deviations", title = "Absolute atypicality index differences between TC and Autism") +
   theme(axis.text.x = element_blank(), axis.ticks.x = element_blank()) +
   geom_jitter(size = 0.1) +
   scale_fill_manual(
@@ -355,13 +348,10 @@ ggplot(Z_max_diagnosis_plot, aes_string(x = "group", y = "absolute_max")) +
 
 ```
 
-### Compare subtypes
-
-Split into ASD subtypes so we can compare the abnormality index between
+Split into ASD subgroups so we can compare the atypicality index between
 these groups. We want different distributions for the groups.
-
-```{r prepare dataframes for abnormality index subtypes}
-#Split dataframes into subtypes
+```{r prepare dataframes for atypicality index subgroups}
+#Split dataframes into subgroups
 Z_max_clust1 <- filter(Z_max, Z_max$SUB_ID %in% dataforclust$SUB_ID[dataforclust$classification_model == 1])
 Z_max_clust2 <- filter(Z_max, Z_max$SUB_ID %in% dataforclust$SUB_ID[dataforclust$classification_model == 2])
 
@@ -373,9 +363,8 @@ Z_max_clust2$group <- "clust2"
 Z_max_plot <- rbind(Z_max_clust1, Z_max_clust2)
 ```
 
-Compare these abnormality indexes with each other using a t.test
-
-```{r compare abnormality index subtypes}
+Compare atypicality index between subgroups
+```{r compare atypicality index subgroups}
 # Positive
 ## assumptions normality:
 qqnorm(Z_max_clust1$positive_max)
@@ -420,13 +409,12 @@ p_values_tests = c(t_test_positive$p.value, t_test_negative$p.value, t_test_abso
 p.adjust(p_values_tests, method="fdr")
 ```
 
-Visualize the abornmaility index
-
-```{r plot abnormality index subtypes}
+Visualize the atypicality index
+```{r plot atypicality index subgroups}
 ggplot(Z_max_plot, aes_string(x = "group", y = "positive_max")) +
   geom_boxplot(aes(fill = group)) +
   theme_classic() +
-  labs(x = "Subgroup", y = "Abnormality index positive deviations", title = "Positive abnormality index for each subgroup") +
+  labs(x = "Subgroup", y = "atypicality index positive deviations", title = "Positive atypicality index for each subgroup") +
   theme(axis.text.x = element_blank(), axis.ticks.x = element_blank()) +
   geom_jitter(size = 0.1) +
   scale_fill_manual(
@@ -437,7 +425,7 @@ ggplot(Z_max_plot, aes_string(x = "group", y = "positive_max")) +
 ggplot(Z_max_plot, aes_string(x = "group", y = "negative_max")) +
   geom_boxplot(aes(fill = group)) +
   theme_classic() +
-  labs(x = "Subgroup", y = "Abnormality index negative deviations", title = "Negative abnormality index for each subgroup") +
+  labs(x = "Subgroup", y = "atypicality index negative deviations", title = "Negative atypicality index for each subgroup") +
   theme(axis.text.x = element_blank(), axis.ticks.x = element_blank()) +
   geom_jitter(size = 0.1) +
   scale_fill_manual(
@@ -448,7 +436,7 @@ ggplot(Z_max_plot, aes_string(x = "group", y = "negative_max")) +
 ggplot(Z_max_plot, aes_string(x = "group", y = "absolute_max")) +
   geom_boxplot(aes(fill = group)) +
   theme_classic() +
-  labs(x = "Subgroup", y = "Abnormality index absolute deviations", title = "Absolute abnormality index for each subgroup") +
+  labs(x = "Subgroup", y = "atypicality index absolute deviations", title = "Absolute atypicality index for each subgroup") +
   theme(axis.text.x = element_blank(), axis.ticks.x = element_blank()) +
   geom_jitter(size = 0.1) +
   scale_fill_manual(
@@ -507,10 +495,10 @@ ggplot(counts_all, aes_string(x = "DX_GROUP", y = "counts")) +
   geom_jitter(size = 0.1) +
   scale_fill_manual(values = c("#5b78e2", "#b30d2e"), name = "Group")
 
-    ggsave(paste("/Volumes/methlab/Students/Jente/Scripts/Rstudio scripts/Plots/Statistics NM_sensitivity_analysis/", ROI,"dif_count_diagnosis.png"))
+    ggsave(paste("/Volumes/methlab/Students/Jente/Scripts_ASD_analysis_final/Rstudio scripts/Plots/Statistics NM_sensitivity_analysis/", ROI,"dif_count_diagnosis.png"))
 
 
-## Compare between ASD subtypes
+## Compare between ASD subgroups
 counts_ASD <- merge(counts, dataforclust, by = "SUB_ID")
 
 ## Test assumptions
@@ -528,11 +516,11 @@ ggplot(counts_ASD, aes_string(x = "classification_model", y = "counts")) +
   geom_jitter(size = 0.1) +
   scale_fill_manual(values = c("#5b78e2", "#b30d2e"), name = "Subgroups")
 
-    ggsave(paste("/Volumes/methlab/Students/Jente/Scripts/Rstudio scripts/Plots/Statistics NM_sensitivity_analysis/", ROI,"dif_count_subtypes.png"))
+    ggsave(paste("/Volumes/methlab/Students/Jente/Scripts_ASD_analysis_final/Rstudio scripts/Plots/Statistics NM_sensitivity_analysis/", ROI,"dif_count_subgroups.png"))
     
     
     
-## Compare between subtypes and TC
+## Compare between subgroups and TC
     
 wilcox.test(counts_ASD$counts[counts_ASD$classification_model==1], counts_all$counts[counts_all$DX_GROUP==2])
 wilcox.test(counts_ASD$counts[counts_ASD$classification_model==2], counts_all$counts[counts_all$DX_GROUP==2])
@@ -543,26 +531,23 @@ wilcox.test(counts_ASD$counts[counts_ASD$classification_model==2], counts_all$co
 ## Save data so we can plot in python
 
 ```{r save significance data}
-write.table(Z_df, "/Volumes/methlab/Students/Jente/Scripts/python_scripts/ASD_model_sensitivity_analysisTC20/results/P_df.csv", append = FALSE, sep = ",", dec = ".", col.names = TRUE)
+write.table(Z_df, "/Volumes/methlab/Students/Jente/Scripts_ASD_analysis_final/python_scripts/ASD_model_sensitivity_analysisTC20/results/P_df.csv", append = FALSE, sep = ",", dec = ".", col.names = TRUE)
 
 ```
 
-## Data for brain maps subtypes
-
-We want to get brain maps for the different subtypes as well. So let's
-save the data for each subgroup seperately so it's easy to handle in
+We want to get brain maps for the different subgroups as well. So let's
+save the data for each subgroup separately so it's easy to handle in
 python.
-
-```{r data for statistic brain maps subtypes}
+```{r data for statistic brain maps subgroups}
 subs_1 <- dataforclust$SUB_ID[dataforclust$classification_model == 1]
 subs_2 <- dataforclust$SUB_ID[dataforclust$classification_model == 2]
 
 Z_df_1 <- filter(Z_df, Z_df$SUB_ID %in% subs_1)
 Z_df_2 <- filter(Z_df, Z_df$SUB_ID %in% subs_2)
 
-write.table(Z_df_1, "/Volumes/methlab/Students/Jente/Scripts/python_scripts/ASD_model_sensitivity_analysisTC20/results/Z_df_subtype1.csv", append = FALSE, sep = ",", dec = ".", col.names = TRUE)
+write.table(Z_df_1, "/Volumes/methlab/Students/Jente/Scripts_ASD_analysis_final/python_scripts/ASD_model_sensitivity_analysisTC20/results/Z_df_subtype1.csv", append = FALSE, sep = ",", dec = ".", col.names = TRUE)
 
-write.table(Z_df_2, "/Volumes/methlab/Students/Jente/Scripts/python_scripts/ASD_model_sensitivity_analysisTC20/results/Z_df_subtype2.csv", append = FALSE, sep = ",", dec = ".", col.names = TRUE)
+write.table(Z_df_2, "/Volumes/methlab/Students/Jente/Scripts_ASD_analysis_final/python_scripts/ASD_model_sensitivity_analysisTC20/results/Z_df_subtype2.csv", append = FALSE, sep = ",", dec = ".", col.names = TRUE)
 ```
 
 
@@ -571,7 +556,7 @@ write.table(Z_df_2, "/Volumes/methlab/Students/Jente/Scripts/python_scripts/ASD_
 
 Load sub IDs that are in the TCtest set (with 10% of TC used for test)
 ```{r}
-subids_test_TC20 <- read.csv("/Volumes/methlab/Students/Jente/Scripts/python_scripts/ASD_model_sensitivity_analysisTC20/subids_test_TC20.csv")
+subids_test_TC20 <- read.csv("/Volumes/methlab/Students/Jente/Scripts_ASD_analysis_final/python_scripts/ASD_model_sensitivity_analysisTC20/subids_test_TC20.csv")
 
 subids_TCtest20 = subids_test_TC20$SUB_ID
 ```
@@ -628,7 +613,7 @@ for (i in 1:150){
 ```
 
 
-Abnormality index:
+atypicality index:
 ```{r}
 
 ## Abornamlity index 
