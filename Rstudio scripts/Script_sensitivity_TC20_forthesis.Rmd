@@ -94,6 +94,89 @@ library(caret)
 
 ```
 
+# Comparisons with TCtest (10%)
+Load sub IDs that are in the TCtest set (with 10% of TC used for test)
+```{r}
+subids_test_TC10 <- read.csv("/Volumes/methlab/Students/Jente/Scripts_ASD_analysis_final/python_scripts/ASD_model/subids_test_TC10.csv")
+subids_TCtest10 = subids_test_TC10$SUB_ID
+```
+
+Deviation scores
+```{r, cache=TRUE}
+# make empty dataframe to store results
+p_values_diag <- data.frame(matrix(ncol = 3, nrow = 0))
+#Change colnames
+colnames(p_values_diag) <- c("ROI", "p_value", "p_value_adjusted")
+  
+i <- 0
+#Loop through each ROI
+for (ROI in colnames(Brain_data_results_all)[16:165]) { 
+  
+  i <- i + 1
+  
+  #Save data for each ROI for each group
+  data_roi <- Brain_data_results_all[c(ROI, "DX_GROUP", "SUB_ID")]
+  data_roi$DX_GROUP = as.character(data_roi$DX_GROUP)
+  data_roi[, ROI] <- abs(data_roi[, ROI])
+  data_roi_1 <- filter(data_roi, data_roi$DX_GROUP == 1)
+  data_roi_2 <- filter(data_roi, data_roi$SUB_ID %in% subids_TCtest10)
+
+  p_values_diag[i,1] = ROI
+  #Calculate p-values and save
+  p_values_diag[i, 2] <- wilcox.test(as.numeric(data_roi_1[, c(ROI)]), as.numeric(data_roi_2[, c(ROI)]))$p.value
+  }
+
+#Adjust p values for multiple comparison
+p_values_diag$p_value_adjusted <- p.adjust(p_values_diag$p_value, method = "fdr")
+  
+for (i in 1:150){
+  #Plot if ROI is significant, otherwise not and show message about significance.
+  if (p_values_diag[i, 3] < 0.05) {
+    message(green(p_values_diag$ROI[i], "is significant. P_value is:", p_values_diag[i, 3]))
+
+    print(
+      ggplot(data_roi, aes_string(x = "DX_GROUP", y = Brain_data_results_all[, p_values_diag$ROI[i]])) +
+        geom_boxplot(aes(fill = DX_GROUP)) +
+        theme_classic() +
+        labs(x = "Group", y = paste(p_values_diag$ROI[i], "deviation score"), title = paste(p_values_diag$ROI[i], "for TCtest10 and Autism")) +
+        theme(axis.text.x = element_blank(), axis.ticks.x = element_blank()) +
+        geom_jitter(size = 0.1) +
+        scale_fill_manual(
+          values = c("#5b78e2", "#b30d2e", "#a82393"), name = "Group", labels =
+            c("Autism", "TCtest10")
+        )
+    )
+  }
+}
+
+```
+
+Atypicality index:
+```{r}
+
+Z_max_TCtest10 = filter(Z_max, Z_max$SUB_ID %in% subids_TCtest10)
+Z_max_TCtest10$group <- "TC"
+
+t_test_positive <- wilcox.test(Z_max_ASD$positive_max, Z_max_TCtest10$positive_max)
+t_test_negative <- wilcox.test(Z_max_ASD$negative_max, Z_max_TCtest10$negative_max)
+t_test_absolute <- wilcox.test(Z_max_ASD$absolute_max, Z_max_TCtest10$absolute_max)
+
+#Adjust p values with FDR correction
+p_values = c(t_test_positive$p.value,t_test_negative$p.value,t_test_absolute$p.value)
+p.adjust(p_values, method="fdr")
+
+
+```
+
+Compare count significant 
+```{r}
+wilcox.test(counts_all$counts[counts_all$DX_GROUP == 1], counts_all$counts[counts_all$SUB_ID %in% subids_TCtest10])
+```
+
+
+# TC20 
+
+
 # Normative modelling
 
 From this part on we use the data from the normative model. This model is run in Python. So make sure you run the model before you start this part of the code.
